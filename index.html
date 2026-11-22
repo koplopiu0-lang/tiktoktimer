@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { margin: 0; font-family: 'Impact', sans-serif; color: white; background: #000; overflow: hidden; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+        .overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        
+        .gifts-row { display: flex; gap: 40px; margin-bottom: 30px; }
+        .gift-item { text-align: center; font-size: 20px; }
+        .gift-item img { width: 60px; height: 60px; display: block; margin: 0 auto; }
+        
+        .center-timer { font-size: 100px; font-weight: bold; margin: 10px 0; }
+        .stats-row { display: flex; gap: 80px; font-size: 32px; font-weight: bold; }
+        
+        #likes-count { color: #ff0050; }
+        
+        #settings-modal { display: none; position: fixed; top: 10%; left: 10%; width: 80%; background: #222; padding: 20px; z-index: 1000; border-radius: 10px; color: white; }
+        .admin-panel { position: fixed; bottom: 0; background: rgba(0,0,0,0.5); padding: 10px; z-index: 999; }
+        button { padding: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <div class="gifts-row" id="gifts-container"></div>
+        
+        <div style="font-size: 24px;">ОСТАЛОСЬ СИДЕТЬ:</div>
+        <div class="center-timer" id="timer">00:00:00</div>
+        
+        <div class="stats-row">
+            <div>УЖЕ СИЖУ:<br><span id="elapsed">00:00:00</span></div>
+            <div>ДО РУЛЕТКИ:<br><span id="likes-count">0</span> ❤️</div>
+        </div>
+    </div>
+
+    <div class="admin-panel">
+        <button onclick="document.getElementById('settings-modal').style.display='block'">⚙️ Настройки</button>
+        <button onclick="elapsed=0;">Сбросить "Уже сижу"</button>
+    </div>
+
+    <div id="settings-modal">
+        <h2>Настройки</h2>
+        <label>Лайков до рулетки: <input type="number" id="inp-likes"></label><br><br>
+        <h3>Подарки (JSON):</h3>
+        <textarea id="inp-gifts" style="width: 100%; height: 100px;"></textarea><br><br>
+        <h3>Рулетка (JSON: label, time, weight):</h3>
+        <textarea id="inp-wheel" style="width: 100%; height: 100px;"></textarea><br><br>
+        <button onclick="saveSettings()">Сохранить</button>
+        <button onclick="this.parentElement.style.display='none'">Закрыть</button>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io('http://localhost:3000');
+        let timeLeft = 0, elapsed = 0, currentConfig = {};
+
+        async function init() {
+            const res = await fetch('/config');
+            currentConfig = await res.json();
+            timeLeft = currentConfig.startTimeSeconds;
+            elapsed = currentConfig.startElapsedSeconds;
+            
+            document.getElementById('inp-likes').value = currentConfig.likesForWheel;
+            document.getElementById('inp-gifts').value = JSON.stringify(currentConfig.gifts, null, 2);
+            document.getElementById('inp-wheel').value = JSON.stringify(currentConfig.wheelSegments, null, 2);
+            renderGifts(currentConfig.gifts);
+            document.getElementById('likes-count').innerText = '0 / ' + currentConfig.likesForWheel;
+        }
+
+        function renderGifts(gifts) {
+            const container = document.getElementById('gifts-container');
+            container.innerHTML = '';
+            for (let name in gifts) {
+                const g = gifts[name];
+                container.innerHTML += `<div class="gift-item"><img src="images/${g.image}" onerror="this.style.display='none'"><span>${name}<br>+${g.time} сек</span></div>`;
+            }
+        }
+
+        async function saveSettings() {
+            currentConfig.likesForWheel = parseInt(document.getElementById('inp-likes').value);
+            currentConfig.gifts = JSON.parse(document.getElementById('inp-gifts').value);
+            currentConfig.wheelSegments = JSON.parse(document.getElementById('inp-wheel').value);
+            
+            await fetch('/save-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(currentConfig)
+            });
+            renderGifts(currentConfig.gifts);
+            document.getElementById('likes-count').innerText = '0 / ' + currentConfig.likesForWheel;
+            document.getElementById('settings-modal').style.display = 'none';
+        }
+
+        setInterval(() => {
+            if (timeLeft > 0) timeLeft--;
+            elapsed++;
+            document.getElementById('timer').innerText = formatTime(timeLeft);
+            document.getElementById('elapsed').innerText = formatTime(elapsed);
+        }, 1000);
+
+        function formatTime(s) {
+            let h = Math.floor(s / 3600);
+            let m = Math.floor((s % 3600) / 60);
+            let sec = s % 60;
+            return [h, m, sec].map(v => String(v).padStart(2, '0')).join(':');
+        }
+
+        socket.on('addTime', (sec) => { timeLeft += sec; });
+        socket.on('likeUpdate', (data) => {
+            document.getElementById('likes-count').innerText = data.current + ' / ' + data.limit;
+        });
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+    "tiktokUsername": "user5727657272321",
+    "startTimeSeconds": 1145,
+    "startElapsedSeconds": 0,
+    "likesForWheel": 500,
+    "gifts": {
+        "Rose": {"time": 1, "image": "rose.png"},
+        "Galaxy": {"time": 300, "image": "galaxy.png"}
+    },
+    "wheelSegments": [
+        {"label": "+30 сек", "time": 30, "weight": 50},
+        {"label": "-10 мин", "time": -600, "weight": 30},
+        {"label": "+1 час", "time": 3600, "weight": 20}
+    ]
+}
